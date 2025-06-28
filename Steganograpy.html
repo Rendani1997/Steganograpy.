@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Steganography App</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      background-color: #f0f0f0;
+      margin: 0;
+      padding: 20px;
+    }
+    .container {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      text-align: center;
+      max-width: 600px;
+      width: 100%;
+    }
+    canvas, img {
+      max-width: 100%;
+      margin: 10px 0;
+      border: 1px solid #ccc;
+    }
+    input, textarea, button {
+      margin: 10px 0;
+      padding: 8px;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    button {
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      cursor: pointer;
+      padding: 10px;
+      border-radius: 4px;
+    }
+    button:hover {
+      background-color: #45a049;
+    }
+    #error {
+      color: red;
+      display: none;
+      margin-top: 10px;
+    }
+    nav {
+      margin-bottom: 20px;
+      width: 100%;
+      max-width: 600px;
+    }
+    nav a {
+      margin: 0 15px;
+      text-decoration: none;
+      color: #4CAF50;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    nav a:hover {
+      text-decoration: underline;
+    }
+    .page {
+      display: none;
+    }
+    .page.active {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <nav>
+    <a onclick="showPage('home')">Home</a>
+    <a onclick="showPage('about')">About</a>
+  </nav>
+
+  <div id="home" class="container page active">
+    <h1>Steganography App</h1>
+    <h2>Hide Data</h2>
+    <input type="file" id="imageInput" accept="image/png">
+    <textarea id="secretMessage" placeholder="Enter message to hide" rows="4"></textarea>
+    <button onclick="hideData()">Hide Message in Image</button>
+    <canvas id="canvas" style="display: none;"></canvas>
+    <a id="downloadLink" style="display: none;">Download Modified Image</a>
+
+    <h2>Retrieve Data</h2>
+    <input type="file" id="decodeImageInput" accept="image/png">
+    <button onclick="retrieveData()">Retrieve Hidden Message</button>
+    <p id="retrievedMessage"></p>
+    <p id="error"></p>
+  </div>
+
+  <div id="about" class="container page">
+    <h1>About Steganography App</h1>
+    <p>Welcome to the Steganography App! This tool allows you to hide secret messages within PNG images using least significant bit (LSB) steganography. You can encode a message into an image and later retrieve it without affecting the image's visible quality.</p>
+    <p><strong>Features:</strong></p>
+    <ul style="text-align: left;">
+      <li>Hide text messages in PNG images.</li>
+      <li>Retrieve hidden messages from encoded images.</li>
+      <li>Simple and user-friendly interface.</li>
+    </ul>
+    <p><strong>How It Works:</strong></p>
+    <p>The app modifies the least significant bits of the image's pixel data to encode your message, ensuring minimal visual impact. To retrieve the message, it reads these bits and reconstructs the original text.</p>
+    <p>Built with HTML, CSS, and JavaScript. For questions or feedback, contact us at <a href="mailto:smithkaylin16@gmail.com">smithkaylin16@gmail.com</a>.</p>
+  </div>
+
+  <script>
+    function showError(message) {
+      const errorDiv = document.getElementById('error');
+      if (errorDiv) {
+        errorDiv.textContent = message;
+        errorDiv.style.display = 'block';
+        setTimeout(() => errorDiv.style.display = 'none', 3000);
+      } else {
+        console.error('Error: Cannot display error message, errorDiv not found.');
+      }
+    }
+
+    function showPage(pageId) {
+      try {
+        const pages = document.querySelectorAll('.page');
+        if (!pages.length) {
+          showError('Page navigation failed: No pages found.');
+          return;
+        }
+        pages.forEach(page => page.classList.remove('active'));
+        const targetPage = document.getElementById(pageId);
+        if (targetPage) {
+          targetPage.classList.add('active');
+        } else {
+          showError(`Page navigation failed: Page "${pageId}" not found.`);
+        }
+      } catch (e) {
+        console.error('Error in showPage:', e);
+        showError('An unexpected error occurred while switching pages.');
+      }
+    }
+
+    function encodeMessage(message, pixels) {
+      try {
+        const binaryMessage = Array.from(message)
+          .map(char => char.charCodeAt(0).toString(2).padStart(8, '0'))
+          .join('') + '00000000'; // Null terminator
+        if (binaryMessage.length > pixels.length * 3) {
+          throw new Error('Message too large for image.');
+        }
+        let msgIndex = 0;
+        for (let i = 0; i < pixels.length && msgIndex < binaryMessage.length; i++) {
+          for (let j = 0; j < 3 && msgIndex < binaryMessage.length; j++) {
+            pixels[i * 4 + j] = (pixels[i * 4 + j] & 0xFE) | parseInt(binaryMessage[msgIndex], 2);
+            msgIndex++;
+          }
+        }
+        return pixels;
+      } catch (e) {
+        console.error('Error in encodeMessage:', e);
+        throw e;
+      }
+    }
+
+    function decodeMessage(pixels) {
+      try {
+        let binaryMessage = '';
+        let message = '';
+        for (let i = 0; i < pixels.length; i += 4) {
+          for (let j = 0; j < 3; j++) {
+            binaryMessage += (pixels[i + j] & 1).toString();
+          }
+          if (binaryMessage.length >= 8) {
+            const byte = binaryMessage.slice(0, 8);
+            binaryMessage = binaryMessage.slice(8);
+            const charCode = parseInt(byte, 2);
+            if (charCode === 0) break;
+            message += String.fromCharCode(charCode);
+          }
+        }
+        return message;
+      } catch (e) {
+        console.error('Error in decodeMessage:', e);
+        throw new Error('Failed to decode message.');
+      }
+    }
+
+    function hideData() {
+      try {
+        const imageInput = document.getElementById('imageInput');
+        const secretMessage = document.getElementById('secretMessage');
+        if (!imageInput || !secretMessage) {
+          showError('Required elements are missing.');
+          return;
+        }
+        if (!imageInput.files || !imageInput.files[0] || !secretMessage.value) {
+          showError('Please upload an image and enter a message.');
+          return;
+        }
+
+        const img = new Image();
+        img.onload = function() {
+          try {
+            const canvas = document.getElementById('canvas');
+            if (!canvas) {
+              showError('Canvas element not found.');
+              return;
+            }
+            canvas.width = img.width;
+            canvas.height = img.height;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) {
+              showError('Failed to get canvas context.');
+              return;
+            }
+            ctx.drawImage(img, 0, 0);
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            let pixels = imageData.data;
+
+            pixels = encodeMessage(secretMessage.value, pixels);
+            ctx.putImageData(imageData, 0, 0);
+            canvas.style.display = 'block';
+            const downloadLink = document.getElementById('downloadLink');
+            if (!downloadLink) {
+              showError('Download link element not found.');
+              return;
+            }
+            const dataUrl = canvas.toDataURL('image/png');
+            if (!dataUrl || !dataUrl.startsWith('data:image/png')) {
+              showError('Failed to generate image data URL.');
+              return;
+            }
+            downloadLink.href = dataUrl;
+            downloadLink.download = 'modified_image.png';
+            downloadLink.textContent = 'Download Modified Image';
+            downloadLink.style.display = 'block';
+          } catch (e) {
+            console.error('Error in hideData:', e);
+            showError(e.message || 'An error occurred while hiding the message.');
+          }
+        };
+        img.onerror = function() {
+          showError('Failed to load the image.');
+        };
+        const file = imageInput.files[0];
+        if (file) {
+          img.src = URL.createObjectURL(file);
+        } else {
+          showError('No valid image file selected.');
+        }
+      } catch (e) {
+        console.error('Error in hideData:', e);
+        showError('An unexpected error occurred.');
+      }
+    }
+
+    function retrieveData() {
+      try {
+        const decodeImageInput = document.getElementById('decodeImageInput');
+        if (!decodeImageInput) {
+          showError('Decode image input element not found.');
+          return;
+        }
+        if (!decodeImageInput.files || !decodeImageInput.files[0]) {
+          showError('Please upload an image to decode.');
+          return;
+        }
+
+        const img = new Image();
+        img.onload = function() {
+          try {
+            const canvas = document.getElementById('canvas');
+            if (!canvas) {
+              showError('Canvas element not found.');
+              return;
+            }
+            canvas.width = img.width;
+            canvas.height = img.height;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) {
+              showError('Failed to get canvas context.');
+              return;
+            }
+            ctx.drawImage(img, 0, 0);
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const pixels = imageData.data;
+            const message = decodeMessage(pixels);
+            const retrievedMessage = document.getElementById('retrievedMessage');
+            if (retrievedMessage) {
+              retrievedMessage.textContent = message || 'No message found.';
+            } else {
+              showError('Retrieved message element not found.');
+            }
+          } catch (e) {
+            console.error('Error in retrieveData:', e);
+            showError(e.message || 'An error occurred while retrieving the message.');
+          }
+        };
+        img.onerror = function() {
+          showError('Failed to load the image.');
+        };
+        const file = decodeImageInput.files[0];
+        if (file) {
+          img.src = URL.createObjectURL(file);
+        } else {
+          showError('No valid image file selected.');
+        }
+      } catch (e) {
+        console.error('Error in retrieveData:', e);
+        showError('An unexpected error occurred.');
+      }
+    }
+  </script>
+</body>
+</html>
