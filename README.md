@@ -29,5 +29,4 @@ Click "Retrieve Hidden Message" to extract and display the hidden text.
 
 
 
-Contact
-For questions, feedback, or issues, reach out at [email protected].
+
